@@ -21,15 +21,19 @@ public class AnalyzeVoice {
 
     private static List<MidiTrack> midiTracks;
     private static Logger logger = LoggerFactory.getLogger(AnalyzeVoice.class);
+    List<Integer> diapazonInfo;
+    Map<Integer, Integer> duration;
+    Map<NoteSign, Integer> amount;
+    List<Note> voiceNotes;
 
-    public static void analyze(MidiFile midiFile) {
+
+    public void analyze(MidiFile midiFile) {
 
         logger.debug("inside method: analize");
         getTracksOfMidifile(midiFile);
         int countOfTextEvents = getDoubleCountOfTextEvents(midiTracks);
         List<Integer> countsOfNotesInTracks = getCountsOfNotesInTracks(midiTracks);
         int voiceTrack = getVoiceTrack(countOfTextEvents, countsOfNotesInTracks);
-        List<Note> voiceNotes;
         voiceNotes = eventsToNotes(midiTracks.get(voiceTrack).getEvents());
         getDiapason(voiceNotes);
         getDuration(voiceNotes, midiFile);
@@ -108,11 +112,13 @@ public class AnalyzeVoice {
         return true;
     }
 
-    public static int getDiapason(List<Note> voiceNotes) {
+    public List<Integer> getDiapason(List<Note> voiceNotes) {
         logger.debug("inside method: getDiapason");
-        int maxIndex = 0;
-        int minIndex = 0;
+        diapazonInfo = new ArrayList<>();
         int diapazon = 0;
+        int minIndex = 0;
+        int maxIndex = 0;
+
         for (int i = 1; i < voiceNotes.size(); i++) {
             if (voiceNotes.get(i).sign().getFrequencyHz() > voiceNotes.get(maxIndex).sign().getFrequencyHz()) {
                 maxIndex = i;
@@ -122,42 +128,34 @@ public class AnalyzeVoice {
             }
             diapazon = (voiceNotes.get(maxIndex).sign().getMidi() - voiceNotes.get(minIndex).sign().getMidi());
         }
-        logger.info("Diapazon: {}", diapazon);
-        logger.info("Top: " + voiceNotes.get(maxIndex).sign().getNoteName());
-        logger.info("Bottom: " + voiceNotes.get(minIndex).sign().getNoteName());
-        return diapazon;
+        diapazonInfo.add(diapazon);
+        diapazonInfo.add(minIndex);
+        diapazonInfo.add(maxIndex);
+        return diapazonInfo;
     }
 
-    public static HashMap<Integer, Integer> getDuration(List<Note> voiceNotes, MidiFile midiFile) {
+    public Map<Integer, Integer> getDuration(List<Note> voiceNotes, MidiFile midiFile) {
         logger.debug("inside method: getDuration");
-        HashMap<Integer, Integer> duration = new HashMap<>();
+        duration = new HashMap<>();
 
         float bpm = getTempo(midiFile).getBpm();
 
         (voiceNotes.stream().map((n) -> SongUtils.tickToMs(bpm, midiFile.getResolution(), n.durationTicks()))
                 .collect(Collectors.groupingBy((dur) -> dur, Collectors.counting()))).
                 forEach((i, l) -> duration.put(i, Math.toIntExact(l)));
-
-        logger.info("Amount of notes by duration:");
-        duration.forEach((key, value) ->
-                logger.info(key.toString() + "ms - " + value.toString()));
         return duration;
 
     }
 
-    public static HashMap<NoteSign, Integer> getAmount(List<Note> voiceNotes) {
+    public Map<NoteSign, Integer> getAmount(List<Note> voiceNotes) {
         logger.debug("inside method: getAmount");
-        HashMap<NoteSign, Integer> amount = new HashMap<>();
+        amount = new HashMap<>();
         (voiceNotes.stream()
                 .map(Note::sign)
                 .collect(Collectors.groupingBy((sign) -> sign, Collectors.counting())))
                 .forEach((sign, l) ->
                         amount.put(sign, Math.toIntExact(l))
                 );
-
-        logger.info("List of notes with the number of occurrences:");
-        amount.forEach((key, value) ->
-                logger.info(key.toString() + " - " + value.toString()));
         return amount;
     }
 
